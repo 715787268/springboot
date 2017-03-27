@@ -357,3 +357,185 @@ test.html
 
 这里尝试了标签内文本输出th:text，含value属性的标签赋值th:value 模板标签th:include/th:replace
 模板还可以使用sitemesh
+
+
+springboot + swagger API文档生成
+
+在开发过程中，后端提供服务给前端调用或者给测试使用，而前端就需要了解api怎样调用，按照之前的项目开发模式，我们都是开发自己写api的word文档， 这样做有几个弊端，一个是文档不好维护，如果api有变更，还得重新修改文档太麻烦；二是如果撰写的风格不一样，文档阅读性差文档，而且容易遗漏，三是不方便立即测试。
+而使用swagger，它提供的注解和ui页面能很好地解决这些麻烦，让开发更高效、专注。
+spring boot引入swagger添加依赖
+<dependency>
+           <groupId>io.springfox</groupId>
+           <artifactId>springfox-swagger2</artifactId>
+           <version>2.2.2</version>
+        </dependency>
+        <dependency>
+           <groupId>io.springfox</groupId>
+           <artifactId>springfox-swagger-ui</artifactId>
+           <version>2.2.2</version>
+        </dependency>
+再启动类Application.class上加入@EnableSwagger2开启swagger注解
+swagger注解详解
+@Api 用在类上，对该类的功能描述说明 如@Api("用户服务")
+@ApiOperation 用在方法上，对该方法的功能描述 如@ApiOperation("用户注册服务")
+@ApiImplicitParams 用在方法上，对多个请求参数的描述，
+    @ApiImplicitParams({
+        @ApiImplicitParam(),@ApiImplicitParam()
+    })
+@ApiImplicitParam对一个参数的描述，有几个属性
+paramType：请求参数的位置，具体值如下
+query为查询，相当于请求是?key=value这类型的，对应请求注解@PathParam
+path 相当于rest参数/{userId}/这种，对应请求注解@PathVariable
+header参数位于请求头，应该是做权限验证之类的，@RequestHeader
+body用于post请求提交对象@RequestBody
+
+defaultValue：参数默认值，这个是给swagger-ui设置的默认值，方便测试
+name :参数名称 ?key=value的key
+value：参数注释/说明，在swagger-ui上显示
+dataType：参数的数据类型 如 String
+required：参数是否为必传参数
+以下是无关紧要的
+allowableValues：参数范围，以区间展示如{@code range[1, 5]}, {@code range(1, 5)}, {@code range[1, 5)}或者{@code range[1, infinity]}左闭右开
+allowMultiple：该参数是否可以通过多次出现接受多个值。大概是可变参数的意思？
+
+@ApiResponses用在方法上，对多个响应的描述，
+  如  @ApiResponses({
+        @ApiResponse(code=400,message="请求参数没填好"),
+        @ApiResponse(code=401,message="请求未被授权"),
+        @ApiResponse(code=401,message="请求被阻止"),
+        @ApiResponse(code=404,message="请求路径没有或页面跳转路径不对")
+    })
+ 有点需要注意：api接口需要注明方法类型如method=RequestMethod.GET，否则swagger-ui会把所有请求类型列出来
+ 
+ package com.springboot.controller;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RestController;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+
+@Api("用户服务")
+@RestController
+@RequestMapping("/user")
+public class UserController
+{
+
+    @ApiOperation("用户注册")
+    @ApiImplicitParams({
+        @ApiImplicitParam(paramType="query",defaultValue="user123",required=true,dataType="String",name="username",value="用户名"),
+        @ApiImplicitParam(paramType="query",defaultValue="password123",required=true,dataType="String",name="pwd",value="密码")
+    })
+    @ApiResponses({
+        @ApiResponse(code=400,message="请求参数没填好"),
+        @ApiResponse(code=401,message="请求未被授权"),
+        @ApiResponse(code=403,message="请求被阻止"),
+        @ApiResponse(code=404,message="请求路径没有或页面跳转路径不对")
+    })
+    @RequestMapping(value= "/register", method=RequestMethod.GET)
+    public Map<String,String> register(String username,String pwd){
+        Map<String, String> resultMap= new HashMap<>();
+        resultMap.put("msg", "200");
+        resultMap.put("username", username);
+        resultMap.put("pwd", pwd);
+        return resultMap;
+    }
+    
+    @ApiOperation(value = "用户登录", notes = "用户登录,需要输入用户名和密码")
+    @ApiImplicitParams({
+        @ApiImplicitParam(paramType="body",defaultValue="{\"username\":\"test\",\"pwd\":\"123456\"}",required=true,dataType="String",name="user",value="用户"),
+    })
+    @ApiResponses({
+        @ApiResponse(code=400,message="请求参数没填好"),
+        @ApiResponse(code=401,message="请求未被授权"),
+        @ApiResponse(code=403,message="请求被阻止"),
+        @ApiResponse(code=404,message="请求路径没有或页面跳转路径不对")
+    })
+    @RequestMapping(value= "/login", method=RequestMethod.POST)
+    public Map<String,String> login(@RequestBody Map<String, String> user){
+        return user;
+    }
+}
+
+pom.xml
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>com</groupId>
+	<artifactId>springboot</artifactId>
+	<packaging>war</packaging>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>springboot Maven Webapp</name>
+	<url>http://maven.apache.org</url>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.compile.version>1.8</project.compile.version>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+			<version>1.5.1.RELEASE</version>
+		</dependency>
+		
+		<dependency>
+           <groupId>io.springfox</groupId>
+           <artifactId>springfox-swagger2</artifactId>
+           <version>2.2.2</version>
+        </dependency>
+        <dependency>
+           <groupId>io.springfox</groupId>
+           <artifactId>springfox-swagger-ui</artifactId>
+           <version>2.2.2</version>
+        </dependency>
+	</dependencies>
+	<build>
+		<finalName>springboot</finalName>
+		<plugins>
+
+			<plugin>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.3</version>
+				<configuration>
+					<source>${project.compile.version}</source>
+					<target>${project.compile.version}</target>
+					<encoding>${project.build.sourceEncoding}</encoding>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+</project>
+
+
+package com.springboot;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+import springfox.documentation.swagger2.annotations.EnableSwagger2;
+
+@SpringBootApplication
+@EnableSwagger2
+public class Application
+{
+    
+    public static void main(String[] args)
+    {
+        SpringApplication.run(Application.class, args);
+    }
+}
